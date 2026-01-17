@@ -4,47 +4,32 @@ import {
   Database, 
   CheckCircle, 
   AlertCircle, 
-  ShieldCheck, 
-  Package, 
-  Activity, 
-  User, 
-  Share2, 
-  Search, 
-  ArrowRight, 
-  Clock, 
-  FileSearch, 
-  Cpu, 
-  RefreshCw,
-  WifiOff
+  ShieldCheck,
+  Package,
+  Activity,
+  User,
+  Share2,
+  Search,
+  ArrowRight,
+  Clock,
+  FileSearch,
+  Cpu,
+  RefreshCw
 } from 'lucide-react';
 
 /**
  * THE HARMONIZER DECISION HUB - LIVE VERSION
- * Connects to n8n Webhooks to process real-time vendor data.
- * Includes automatic Fallback Mode for seamless demos even if the backend is offline.
  */
 
 // --- CONFIGURATION ---
-// IMPORTANT: Ensure this matches the "Forwarding" address in your ngrok terminal exactly.
+// 1. Ensure this matches your ngrok terminal EXACTLY
 const NGROK_URL = "https://amiably-vitiated-hilde.ngrok-free.dev"; 
 
-// n8n standard production webhook path is "/webhook".
-const WEBHOOK_PREFIX = "/webhook";
-
-// --- MOCK DATA FOR FALLBACK ---
-const MOCK_INVOICES = [
-  { Invoice_ID: 'INV-102', Vendor_Name: 'Acme Supplies', Invoice_Date: '2024-01-20', Amount: 1200.00, Status: 'Ready', PO_Number: '4500012345' },
-  { Invoice_ID: 'INV-103', Vendor_Name: 'Global Pharma', Invoice_Date: '2024-01-21', Amount: 5400.00, Status: 'Ready', PO_Number: '4500067890' },
-  { Invoice_ID: 'INV-099', Vendor_Name: 'Tech Logistics', Invoice_Date: '2024-01-18', Amount: 250.00, Status: 'Posted', PO_Number: '4500011111' },
-];
-
-const MOCK_SAP_DATA = {
-  '4500012345': { items: 10, grQty: 10, unitPrice: 100, material: 'Laptop X1' },
-  '4500067890': { items: 50, grQty: 50, unitPrice: 100, material: 'Lab Reagent A' }
-};
+// 2. Set this to "/webhook-test" if you are clicking "Test Workflow" in n8n.
+//    Set this to "/webhook" once you successfully toggle the workflow to ACTIVE.
+const WEBHOOK_PREFIX = "/webhook-test"; 
 
 const App = () => {
-  // --- STATE MANAGEMENT ---
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -53,91 +38,42 @@ const App = () => {
   const [auditResult, setAuditResult] = useState(null);
   const [filterStatus, setFilterStatus] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [usingMock, setUsingMock] = useState(false);
 
-  // --- FETCH QUEUE FROM N8N (Workflow 3) ---
   const fetchQueue = async () => {
     setLoading(true);
-    setUsingMock(false);
-    const fullUrl = `${NGROK_URL}${WEBHOOK_PREFIX}/get-queue`;
-    console.log("Fetching queue from:", fullUrl);
-
     try {
-      // We attempt to fetch with headers to skip ngrok warning
-      // Note: This requires n8n to handle OPTIONS requests (CORS) correctly.
-      // If n8n isn't configured for CORS, this will fail, and we catch it below.
-      const response = await fetch(fullUrl, {
-        method: 'GET',
+      // We add the 'ngrok-skip-browser-warning' header to bypass the ngrok splash page
+      const response = await fetch(`${NGROK_URL}${WEBHOOK_PREFIX}/get-queue`, {
         headers: {
-          "Accept": "application/json",
-          "ngrok-skip-browser-warning": "true"
+          "ngrok-skip-browser-warning": "69420"
         }
       });
-      
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Received HTML instead of JSON (likely ngrok warning page)");
-      }
-
       const data = await response.json();
       setInvoices(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.warn("Live fetch failed, switching to Demo Mode:", error.message);
-      // FALLBACK LOGIC
-      setUsingMock(true);
-      setInvoices(MOCK_INVOICES);
+      console.error("Error fetching queue:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (NGROK_URL && !NGROK_URL.includes("REPLACE_WITH")) {
+    if (NGROK_URL !== "REPLACE_WITH_YOUR_NGROK_URL") {
       fetchQueue();
-    } else {
-      setUsingMock(true);
-      setInvoices(MOCK_INVOICES);
-      setLoading(false);
     }
   }, []);
 
-  // --- TRIGGER AUDIT WEBHOOK (Workflow 2) ---
   const handleProcessInvoice = async (inv) => {
     setSelectedInvoice(inv);
     setIsProcessing(true);
-    setActiveStep(1); 
-    const auditUrl = `${NGROK_URL}${WEBHOOK_PREFIX}/process-invoice`;
+    setActiveStep(1);
 
-    if (usingMock) {
-      // SIMULATED AUDIT FOR DEMO MODE
-      setTimeout(() => {
-        setActiveStep(2);
-        setTimeout(() => {
-          setActiveStep(3);
-          const sapRecord = MOCK_SAP_DATA[inv.PO_Number];
-          const isQtyMismatch = inv.Invoice_ID === 'INV-102'; // Hardcoded scenario logic
-          
-          setAuditResult({
-            finding: isQtyMismatch 
-              ? `QUANTITY MISMATCH: Supplier billed ${inv.Amount/100} units. Warehouse receipt confirms ${sapRecord?.grQty || 0} units.` 
-              : "MATCH SUCCESS: Invoice matches SAP Purchase Order and Goods Receipt records.",
-            status: isQtyMismatch ? "Discrepancy" : "Matched"
-          });
-          setIsProcessing(false);
-        }, 1500);
-      }, 1500);
-      return;
-    }
-
-    // REAL AUDIT
     try {
-      const response = await fetch(auditUrl, {
+      const response = await fetch(`${NGROK_URL}${WEBHOOK_PREFIX}/process-invoice`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': '69420'
         },
         body: JSON.stringify({
           invoiceId: inv.Invoice_ID,
@@ -146,28 +82,20 @@ const App = () => {
         })
       });
 
-      if (!response.ok) throw new Error("Audit request failed");
-
       const result = await response.json();
       setActiveStep(3);
       setAuditResult({
-        finding: result.finding || "Analysis Complete.",
+        finding: result.finding || "Analysis Complete. Check Notion.",
         status: result.status || "Pending Review"
       });
     } catch (error) {
       console.error("Audit failed:", error);
-      // Graceful error handling in UI
-      setActiveStep(3);
-      setAuditResult({ 
-        finding: "Live connection failed (CORS/Network). Demo Mode would show AI reasoning here.",
-        status: "Connection Error"
-      });
+      setAuditResult({ finding: "Connection to n8n failed. Ensure the tunnel is open." });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // --- FILTERING LOGIC ---
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
       const matchStatus = filterStatus === 'All' || inv.Status === filterStatus;
@@ -179,7 +107,6 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
-      {/* Header */}
       <nav className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <div className="bg-slate-900 p-2 rounded-lg shadow-lg">
@@ -188,23 +115,13 @@ const App = () => {
           <div>
             <h1 className="text-lg font-black tracking-tight text-slate-800 uppercase italic">Harmonizer <span className="text-blue-600 tracking-normal">Decision Hub</span></h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2">
-              <Clock className="w-3 h-3" /> System Status: {loading ? "Connecting..." : "Active"}
+              <Clock className="w-3 h-3" /> Live Feed: {loading ? "Syncing..." : "Connected"}
             </p>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
-          {usingMock && (
-            <div className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse">
-               <WifiOff className="w-3 h-3 text-amber-600" />
-               <span className="text-[10px] font-black text-amber-700 uppercase">Demo Mode (Offline)</span>
-            </div>
-          )}
-          <button 
-            onClick={fetchQueue}
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
-            title="Refresh Queue"
-          >
+          <button onClick={fetchQueue} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-md">FA</div>
@@ -212,19 +129,13 @@ const App = () => {
       </nav>
 
       <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Sidebar: The Queue */}
         <aside className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-inner">
           <div className="p-6 space-y-4 border-b border-slate-100">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <FileSearch className="w-4 h-4" /> Invoice Queue
-              </h2>
-            </div>
-            
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+              <FileSearch className="w-4 h-4" /> Invoice Queue
+            </h2>
             <input 
-              type="text" 
-              placeholder="Search..." 
+              type="text" placeholder="Search..." 
               className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -233,11 +144,9 @@ const App = () => {
 
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {loading ? (
-              <div className="text-center py-10 text-slate-300 animate-pulse">Scanning Queue...</div>
-            ) : filteredInvoices.length === 0 ? (
-               <div className="text-center py-10 text-slate-400 px-6">
-                 <p className="text-xs font-bold mb-1">Queue Empty</p>
-               </div>
+              <div className="text-center py-10 text-slate-300 animate-pulse font-bold text-xs uppercase">Connecting to Local n8n...</div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-xs italic">No "Ready" invoices in sheet.</div>
             ) : filteredInvoices.map((inv) => (
               <button
                 key={inv.Invoice_ID}
@@ -252,19 +161,16 @@ const App = () => {
                   <span className="text-[10px] font-bold text-blue-600">#{inv.Invoice_ID}</span>
                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-700">{inv.Status}</span>
                 </div>
-                <p className="text-sm font-bold text-slate-800 truncate">{inv.Vendor_Name || "Unknown Vendor"}</p>
-                <p className="text-[10px] text-slate-400 mt-1">PO: {inv.PO_Number}</p>
+                <p className="text-sm font-bold text-slate-800 truncate">{inv.Vendor_Name}</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">PO: {inv.PO_Number}</p>
               </button>
             ))}
           </div>
         </aside>
 
-        {/* Main Part: The Comparison & Decision Screen */}
         <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
           {selectedInvoice ? (
             <div className="max-w-4xl mx-auto space-y-6">
-              
-              {/* Header Info */}
               <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-black italic">Audit Process: {selectedInvoice.Invoice_ID}</h2>
@@ -280,27 +186,23 @@ const App = () => {
                 </div>
               </div>
 
-              {/* Status Display */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4">Invoice Data</h3>
                   <div className="space-y-2">
                     <p className="text-sm font-bold">Vendor: {selectedInvoice.Vendor_Name}</p>
-                    <p className="text-sm">Amount: ${selectedInvoice.Amount}</p>
+                    <p className="text-sm font-medium">Billed Amount: ${selectedInvoice.Amount}</p>
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <h3 className="text-[10px] font-black uppercase text-slate-400 mb-4">SAP Record (PO)</h3>
                   <div className="space-y-2">
                     <p className="text-sm font-bold">PO #: {selectedInvoice.PO_Number}</p>
-                    <p className="text-xs text-slate-500 italic">
-                      {usingMock ? "Simulated Backend Query" : "Connected via n8n"}
-                    </p>
+                    <p className="text-xs text-slate-500 italic">Connected to {NGROK_URL}</p>
                   </div>
                 </div>
               </div>
 
-              {/* AI Analysis Result */}
               {activeStep === 3 && auditResult && (
                 <div className="bg-white rounded-3xl border-2 border-blue-600 p-8 shadow-2xl animate-in zoom-in-95">
                   <div className="flex items-center gap-3 mb-4">
@@ -310,13 +212,8 @@ const App = () => {
                   <p className="text-lg text-slate-700 bg-slate-50 p-6 rounded-2xl border border-slate-100 leading-relaxed italic">
                     "{auditResult.finding}"
                   </p>
-                  <div className="mt-8 flex justify-end gap-3">
-                    <button className="px-6 py-3 rounded-xl border border-slate-200 text-xs font-bold uppercase text-slate-400 hover:bg-slate-50">Dispute</button>
-                    <button className="px-6 py-3 rounded-xl bg-blue-600 text-white text-xs font-bold uppercase shadow-lg shadow-blue-200">Approve & Post</button>
-                  </div>
                 </div>
               )}
-
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
